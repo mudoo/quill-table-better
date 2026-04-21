@@ -148,7 +148,7 @@ class CellSelection {
       }
       res = `<tr>${res}</tr>`;
       html += res;
-    } 
+    }
     html = `<table><tbody>${html}</tbody></table>`;
     html = tableBlot.getCopyTable(html);
     const text = this.getText(html);
@@ -300,10 +300,6 @@ class CellSelection {
 
   handleClick(e: MouseEvent) {
     if (e.detail < 3 || !this.selectedTds.length) return;
-    // Multiple clicks result in cell being selected
-    // Cell are deleted when deleting
-    const { index, length } = this.quill.getSelection(true);
-    this.quill.setSelection(index, length - 1, Quill.sources.SILENT);
     this.quill.scrollSelectionIntoView();
   }
 
@@ -347,7 +343,7 @@ class CellSelection {
     startTd.classList.add('ql-cell-focused');
     this.setHeaderRowSwitch();
     this.setMenuDisable('merge');
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       const endTd = (e.target as Element).closest('td,th');
       if (!endTd) return;
