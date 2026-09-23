@@ -5,6 +5,8 @@ import type { Range } from 'quill';
 import type { Props } from '../types';
 import {
   TableCellBlock,
+  TableCell,
+  TableTh,
   TableThBlock,
   TableTemporary
 } from '../formats/table';
@@ -22,6 +24,8 @@ class TableClipboard extends Clipboard {
   onPaste(range: Range, { text, html }: { text?: string; html?: string }) {
     const formats = this.quill.getFormat(range.index) as Props;
     const pastedDelta = this.getTableDelta({ text, html }, formats);
+    // The document listener performs table-cell replacement as one edit.
+    if (pastedDelta === null) return;
     debug.log('onPaste', pastedDelta, { text, html });
     const delta = new Delta()
       .retain(range.index)
@@ -38,11 +42,11 @@ class TableClipboard extends Clipboard {
 
   private getTableDelta({ html, text }: { html?: string; text?: string }, formats: Props) {
     const delta = this.convert({ text, html }, formats);
-    if (formats[TableCellBlock.blotName] || formats[TableThBlock.blotName]) {
+    if (formats[TableCell.blotName] || formats[TableTh.blotName]) {
       for (const op of delta.ops) {
         // External copied tables or table contents copied within an editor.
         if (op?.attributes?.[TableTemporary.blotName]) {
-          return new Delta();
+          return null;
         }
         // Process externally pasted lists or headers or text.
         if (

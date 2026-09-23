@@ -1,5 +1,5 @@
 import Quill from 'quill';
-import Delta from 'quill-delta';
+import type Delta from 'quill-delta';
 import type { BlockBlot as Block, EmbedBlot as Embed } from 'parchment';
 import type { AttributeMap, Op } from 'quill-delta';
 import type {
@@ -18,7 +18,6 @@ import {
   getCorrectBounds,
   getCorrectCellBlot
 } from '../utils';
-import { applyFormat } from '../utils/clipboard-matchers';
 import {
   cellId,
   TableCellBlock,
@@ -670,12 +669,7 @@ class CellSelection {
     const copyFormats = TableCell.formats(copyTd);
     Object.assign(copyFormats, { 'data-row': id });
     const cell = Quill.find(selectedTd) as TableCell;
-    const index = cell.offset(this.quill.scroll);
     const blockName = selectedTd.tagName === 'TH' ? TableThBlock.blotName : TableCellBlock.blotName;
-    const formats = {
-      [blockName]: cellId(),
-      [cell.statics.blotName]: copyFormats
-    };
     const html = getCopyTd(copyTd.innerHTML);
     const text = this.getText(html);
     const pastedDelta = this.quill.clipboard.convert({ text, html });
@@ -683,15 +677,36 @@ class CellSelection {
     if (typeof last?.insert !== 'string' || !last.insert.endsWith('\n')) {
       pastedDelta.insert('\n');
     }
-    // Replace the complete cell, including its terminal newline. A fresh ID
-    // prevents imported paragraphs from merging with the old cell or neighbours.
-    const delta = new Delta()
-      .retain(index)
-      .concat(applyFormat(pastedDelta, formats))
-      .delete(cell.length());
-    this.quill.updateContents(delta, Quill.sources.USER);
-    const [line] = this.quill.getLine(index);
-    return getCorrectCellBlot(line);
+    const replacement = cell.replaceWith(cell.statics.blotName, copyFormats) as TableCell;
+    replacement.children.forEach(child => child.remove());
+    const idForCell = cellId();
+    // Build every cell before the single quill.update() in onCapturePaste.
+    // History must see one change even when the host disables time-based merging.
+    pastedDelta.eachLine((contents, attributes) => {
+      const block = this.quill.scroll.create(blockName, idForCell) as TableCellBlock;
+      replacement.appendChild(block);
+      let offset = 0;
+      for (const op of contents.ops) {
+        const length = typeof op.insert === 'string' ? op.insert.length : 1;
+        if (typeof op.insert === 'string') {
+          block.insertAt(offset, op.insert);
+        } else {
+          const [name, value] = Object.entries(op.insert)[0];
+          block.insertAt(offset, name, value);
+        }
+        for (const [name, value] of Object.entries(op.attributes || {})) {
+          block.formatAt(offset, length, name, value);
+        }
+        offset += length;
+      }
+      const index = block.offset(this.quill.scroll);
+      for (const [name, value] of Object.entries(attributes)) {
+        if (name.startsWith('table-')) continue;
+        const [line] = this.quill.scroll.line(index);
+        line.formatAt(0, line.length(), name, value);
+      }
+    });
+    return replacement;
   }
 
   removeCursor() {

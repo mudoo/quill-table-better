@@ -1,5 +1,45 @@
 const { test, expect } = require('./helpers');
 
+for (const format of ['header', 'list', 'thead']) {
+  test(`paste into ${format} cells is one change even with history delay zero`, async ({ page }) => {
+    const result = await page.evaluate(format => {
+      const html = format === 'thead' ? '<table><thead><tr><th>OLD1</th><th>OLD2</th></tr></thead></table>' : '<table><tr><td>OLD1</td><td>OLD2</td></tr></table>';
+      const quill = createEditor(html, { history: { delay: 0 } });
+      const module = quill.getModule('table-better');
+      const index = Quill.find(quill.root.querySelector('td,th')).offset(quill.scroll);
+      if (format !== 'thead') quill.formatLine(index, 1, format, format === 'header' ? 2 : 'bullet');
+      module.cellSelection.setSelected(quill.root.querySelector('td,th'));
+      quill.history.clear();
+      const before = quill.getContents();
+      let changes = 0;
+      quill.on('text-change', () => changes++);
+      const data = new DataTransfer();
+      data.setData('text/html', '<table><tr><td><h2>NEW1</h2></td><td><ul><li>NEW2</li></ul></td></tr></table>');
+      quill.root.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      const cells = [...quill.root.querySelectorAll('td,th')].map(cell => cell.textContent);
+      const heading = quill.root.querySelector('h2')?.textContent;
+      const list = quill.root.querySelector('li')?.textContent;
+      const pasteChanges = changes;
+      quill.history.undo();
+      // Rebuilding lists can serialize the implicit one-column/one-row spans.
+      const normalize = delta => delta.ops.map(op => {
+        for (const name of ['table-cell', 'table-th']) {
+          for (const span of ['rowspan', 'colspan']) {
+            if (op.attributes?.[name]?.[span] === '1') delete op.attributes[name][span];
+          }
+        }
+        return op;
+      });
+      return { cells, heading, list, changes: pasteChanges, before: normalize(before), undo: normalize(quill.getContents()) };
+    }, format);
+    expect(result.cells).toEqual(['NEW1', 'NEW2']);
+    expect(result.changes).toBe(1);
+    expect(result.heading).toBe('NEW1');
+    expect(result.list).toBe('NEW2');
+    expect(result.undo).toEqual(result.before);
+  });
+}
+
 test('native table paste overwrites cells and is isolated as one undo step', async ({ page }) => {
   await page.evaluate(() => {
     const source = document.createElement('div');
@@ -24,7 +64,7 @@ test('native table paste overwrites cells and is isolated as one undo step', asy
 
 test('paste can overwrite a multiline cell with empty content and extend the table', async ({ page }) => {
   const result = await page.evaluate(() => {
-    const quill = createEditor('<table><tr><td><p>OLD1</p><p>OLD2</p></td></tr></table>');
+    const quill = createEditor('<table><tr><td><p>OLD1</p><p>OLD2</p></td></tr></table>', { history: { delay: 0 } });
     const module = quill.getModule('table-better');
     module.cellSelection.setSelected(quill.root.querySelector('td'));
     const data = new DataTransfer();
