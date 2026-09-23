@@ -44,7 +44,7 @@ class TableToolbar extends Toolbar {
     }
     const eventName = input.tagName === 'SELECT' ? 'change' : 'click';
     input.addEventListener(eventName, (e) => {
-      const { cellSelection } = this.getTableBetter();
+      const cellSelection = this.getTableBetter()?.cellSelection;
       if (cellSelection?.selectedTds?.length > 1) {
         this.cellSelectionAttach(input, format, e, cellSelection);
       } else {
@@ -246,7 +246,7 @@ function tablehandler(
 TableToolbar.DEFAULTS = merge({}, Toolbar.DEFAULTS, {
   handlers: {
     header(value: string, lines?: TableCellChildren[]) {
-      const { cellSelection } = this.getTableBetter(); 
+      const cellSelection = this.getTableBetter()?.cellSelection;
       const selectedTds = cellSelection?.selectedTds;
       if (selectedTds?.length) {
         return tablehandler.call(this, value, selectedTds, 'header', lines);
@@ -254,7 +254,7 @@ TableToolbar.DEFAULTS = merge({}, Toolbar.DEFAULTS, {
       this.quill.format('header', value, Quill.sources.USER);
     },
     list(value: string, lines?: TableCellChildren[]) {
-      const { cellSelection } = this.getTableBetter();
+      const cellSelection = this.getTableBetter()?.cellSelection;
       const selectedTds = cellSelection?.selectedTds;
       if (selectedTds?.length) {
         if (selectedTds.length === 1) {
