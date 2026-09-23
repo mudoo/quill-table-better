@@ -348,13 +348,21 @@ class TablePropertiesForm {
         {
           component: iro.ui.Wheel,
           options: {}
+        },
+        {
+          component: iro.ui.Slider,
+          options: { sliderType: 'alpha' }
         }
       ]
     });
     const eraseContainer = this.createColorPickerIcon(
       paletteIcon,
       useLanguage('colorPicker'),
-      () => this.toggleHidden(palette)
+      () => {
+        const color = this.attrs[propertyName];
+        if (color && /^(#|rgb)/.test(color)) colorPicker.color.set(color);
+        this.toggleHidden(palette);
+      }
     );
     const btns = this.createActionBtns(
       (e: MouseEvent) => {
@@ -364,7 +372,7 @@ class TablePropertiesForm {
         if (label === 'save') {
           this.setAttribute(
             propertyName,
-            colorPicker.color.hexString,
+            colorPicker.color.alpha < 1 ? colorPicker.color.hex8String : colorPicker.color.hexString,
             parent
           );
           this.updateInputStatus(container, false, true);

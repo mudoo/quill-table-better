@@ -1,5 +1,41 @@
 const { test, expect } = require('./helpers');
 
+test('cell properties parse transparent and fractional RGBA channels', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const quill = createEditor('<table><tr><td>A</td></tr></table>');
+    const td = quill.root.querySelector('td');
+    const menus = quill.getModule('table-better').tableMenus;
+    return ['rgba(100, 150, 200, 0.5)', 'rgba(0, 0, 0, 0)', 'rgb(100, 150, 200)', 'rgba(300, -10, 200, 1)', 'rgb(100% 0% 0% / 25%)'].map(color => {
+      td.style.backgroundColor = color;
+      return menus.getSelectedTdAttrs(td)['background-color'];
+    });
+  });
+  expect(result).toEqual(['#6496c880', '#00000000', '#6496c8', '#ff00c8', '#ff000040']);
+});
+
+test('the properties form edits and saves alpha without rejecting eight-digit hex', async ({ page }) => {
+  await page.evaluate(() => {
+    window.quill = createEditor('<table><tr><td style="background-color:rgba(100,150,200,0.5)">A</td></tr></table>');
+  });
+  await page.locator('.ql-editor td').click();
+  await page.locator('[data-category="cell"]').click();
+  const input = page.locator('input[placeholder="Color"]').last();
+  await expect(input).toHaveValue('#6496c880');
+  await input.fill('#10203040');
+  const background = page.locator('.ql-table-color-container').last();
+  await background.locator('.color-button').click();
+  await background.getByRole('button', { name: 'Color picker', exact: true }).click();
+  await background.locator('.color-picker-palette button[label="save"]').click();
+  await expect(input).toHaveValue('#10203040');
+  const save = page.locator('.properties-form-action-row > button[label="save"]').last();
+  await expect(save).toBeEnabled();
+  await save.click();
+  expect(await page.evaluate(() => {
+    quill.update();
+    return quill.getModule('table-better').tableMenus.getSelectedTdAttrs(quill.root.querySelector('td'))['background-color'];
+  })).toBe('#10203040');
+});
+
 test('percentage column widths use the owning table in differently sized editors', async ({ page }) => {
   const result = await page.evaluate(() => {
     const html = '<table style="width:100%"><colgroup><col width="100"><col width="100"></colgroup><tr><td>A</td><td>B</td></tr></table>';

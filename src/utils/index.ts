@@ -276,15 +276,9 @@ function isSimpleColor(color: string) {
 
 function isValidColor(color: string) {
   if (!color) return true;
-  const hexRegex = /^#([A-Fa-f0-9]{3,6})$/;
-  const rgbRegex = /^rgb\((\d{1,3}), (\d{1,3}), (\d{1,3})\)$/;
-  // const rgbaRegex = /^rgba\((\d{1,3}), (\d{1,3}), (\d{1,3}), (\d{1,3})\)$/;
-  if (hexRegex.test(color)) {
-    return true;
-  } else if (rgbRegex.test(color)) {
-    return true;
-  }
-  return isSimpleColor(color);
+  const hexRegex = /^#(?:[a-f\d]{3,4}|[a-f\d]{6}|[a-f\d]{8})$/i;
+  return hexRegex.test(color) || isSimpleColor(color) || color === 'transparent' ||
+    (/^rgba?\(/i.test(color) && CSS.supports('color', color));
 }
 
 function isValidDimensions(value: string) {
@@ -311,23 +305,18 @@ function removeElementProperty(node: HTMLElement, properties: string[]) {
 }
 
 function rgbToHex(value: string) {
-  if (value.startsWith('rgba(')) return rgbaToHex(value);
-  if (!value.startsWith('rgb(')) return value;
-  value = value.replace(/^[^\d]+/, '').replace(/[^\d]+$/, '');
-  const hex = value
-    .split(',')
-    .map(component => `00${parseInt(component, 10).toString(16)}`.slice(-2))
-    .join('');
+  if (value === 'transparent') return '#00000000';
+  const match = /^rgba?\((.*)\)$/i.exec(value.trim());
+  if (!match) return value;
+  const channels = match[1].trim().split(/[\s,/]+/);
+  if (channels.length < 3 || channels.length > 4 ||
+    channels.some(channel => !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)%?$/.test(channel))) return value;
+  const hex = channels.map((channel, index) => {
+    const scale = channel.endsWith('%') ? 255 / 100 : index === 3 ? 255 : 1;
+    const byte = Math.round(Math.min(255, Math.max(0, parseFloat(channel) * scale)));
+    return byte.toString(16).padStart(2, '0');
+  }).join('');
   return `#${hex}`;
-}
-
-function rgbaToHex(value: string) {
-  value = value.replace(/^[^\d]+/, '').replace(/[^\d]+$/, '');
-  const r = Math.round(+value[0]);
-  const g = Math.round(+value[1]);
-  const b = Math.round(+value[2]);
-  const a = Math.round(+value[3] * 255).toString(16).toUpperCase().padStart(2, '0');
-  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1) + a;
 }
 
 function setElementAttribute(node: Element, attributes: Props) {
@@ -437,7 +426,7 @@ export {
   isValidPadding,
   removeElementProperty,
   rgbToHex,
-  rgbaToHex,
+  rgbToHex as rgbaToHex,
   setElementAttribute,
   setElementProperty,
   throttle,
