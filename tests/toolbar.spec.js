@@ -1,5 +1,19 @@
 const { test, expect } = require('./helpers');
 
+test('batch headings and lists use the host Quill Parchment constructors', async ({ page }) => {
+  await page.evaluate(() => {
+    window.quill = createEditor('<table><tr><td>ONE</td><td>TWO</td></tr></table>');
+    const module = quill.getModule('table-better');
+    module.cellSelection.setSelectedTds([...quill.root.querySelectorAll('td')]);
+    quill.blur();
+  });
+  await page.locator('.ql-header .ql-picker-label').click();
+  await page.locator('.ql-header .ql-picker-item[data-value="1"]').click();
+  await expect(page.locator('td h1')).toHaveText(['ONE', 'TWO']);
+  await page.locator('.ql-list').click();
+  await expect(page.locator('td li')).toHaveText(['ONE', 'TWO']);
+});
+
 test('plain editors retain default and custom toolbar handlers after registration', async ({ page }) => {
   await page.evaluate(() => {
     createEditor('<table><tr><td>TABLE</td></tr></table>');

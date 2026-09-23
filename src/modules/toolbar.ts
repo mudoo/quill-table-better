@@ -1,7 +1,6 @@
 import Quill from 'quill';
 import Delta from 'quill-delta';
 import merge from 'lodash.merge';
-import { EmbedBlot } from 'parchment';
 import type { ContainerBlot } from 'parchment';
 import type { Range } from 'quill';
 import type {
@@ -15,6 +14,7 @@ import { getCorrectCellBlot } from '../utils';
 import TableHeader from '../formats/header';
 
 const Module = Quill.import('core/module');
+const { EmbedBlot } = Quill.import('parchment');
 const Container = Quill.import('blots/container') as typeof ContainerBlot;
 const Toolbar = Quill.import('modules/toolbar') as typeof Module;
 

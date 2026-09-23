@@ -1,6 +1,6 @@
 import Quill from 'quill';
 import Delta from 'quill-delta';
-import { BlockBlot, ContainerBlot, EmbedBlot } from 'parchment';
+import type { BlockBlot as Block, EmbedBlot as Embed } from 'parchment';
 import type { AttributeMap, Op } from 'quill-delta';
 import type {
   Props,
@@ -29,6 +29,8 @@ import {
 } from '../formats/table';
 import { DEVIATION } from '../config';
 
+const { BlockBlot, ContainerBlot, EmbedBlot } = Quill.import('parchment');
+
 const WHITE_LIST = [
   'bold',
   'italic',
@@ -48,7 +50,7 @@ const WHITE_LIST = [
 // Only supports formatting for a single cell.
 const SINGLE_WHITE_LIST = ['link', 'image'];
 
-function isLine(blot: unknown): blot is BlockBlot | EmbedBlot {
+function isLine(blot: unknown): blot is Block | Embed {
   return blot instanceof BlockBlot || blot instanceof EmbedBlot;
 }
 
@@ -509,7 +511,7 @@ class CellSelection {
 
   lines(blot: TableCell) {
     const getLines = (blot: TableCell | TableCellAllowedChildren) => {
-      let lines: (BlockBlot | EmbedBlot)[] = [];
+      let lines: (Block | Embed)[] = [];
       blot.children.forEach((child: TableCellAllowedChildren) => {
         if (child instanceof ContainerBlot) {
           lines = lines.concat(getLines(child));
