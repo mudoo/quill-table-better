@@ -236,20 +236,18 @@ function getCorrectCellBlot(blot: Blot | null): TableCell | null {
   return null;
 }
 
-function getCorrectContainerWidth() {
-  const container = document.querySelector('.ql-editor');
+function getCorrectContainerWidth(container: HTMLElement) {
   const { clientWidth } = container;
   const computedStyle = getComputedStyle(container);
-  const pl = ~~computedStyle.getPropertyValue('padding-left');
-  const pr = ~~computedStyle.getPropertyValue('padding-right');
-  const w = clientWidth - pl - pr;
+  const pl = parseFloat(computedStyle.paddingLeft) || 0;
+  const pr = parseFloat(computedStyle.paddingRight) || 0;
+  const w = Math.max(0, clientWidth - pl - pr);
   return w;
 }
 
-function getCorrectWidth(width: number, isPercent: boolean) {
-  if (!isPercent) return `${width}px`;
-  const w = getCorrectContainerWidth();
-  return `${((width / w) * 100).toFixed(2)}%`;
+function getCorrectWidth(width: number, isPercent: boolean, referenceWidth: number) {
+  if (!isPercent || referenceWidth <= 0) return `${width}px`;
+  return `${((width / referenceWidth) * 100).toFixed(2)}%`;
 }
 
 function getElementStyle(node: HTMLElement, rules: string[]) {
@@ -384,37 +382,31 @@ function throttleStrong(cb: Function, delay: number) {
 function updateTableWidth(
   table: HTMLElement,
   tableBounds: CorrectBound,
-  change: number
+  change: number,
+  editor: HTMLElement
 ) {
   const tableBlot = Quill.find(table) as TableContainer;
   if (!tableBlot) return;
   const isPercent = tableBlot.isPercent();
   if (isPercent && !change) return;
   const colgroup = tableBlot.colgroup();
-  const temporary = tableBlot.temporary();
+  const target = tableBlot.temporary()?.domNode || table;
+  // A table is relative to its editor; column and cell percentages are relative
+  // to the table. Summing column percentages cannot determine the table width.
+  if (isPercent) {
+    setElementProperty(target, {
+      width: getCorrectWidth(tableBounds.width + change, true, getCorrectContainerWidth(editor))
+    });
+    return;
+  }
   if (colgroup) {
-    if (isPercent) {
-      let _width = 0;
-      const cols = colgroup.domNode.querySelectorAll('col');
-      for (const col of cols) {
-        const width = col.style.getPropertyValue('width');
-        _width += (width ? parseFloat(width) : 0);
-      }
-      setElementProperty(temporary.domNode, { width: `${_width}%` });
-    } else {
-      let _width = 0;
-      const cols = colgroup.domNode.querySelectorAll('col');
-      for (const col of cols) {
-        const width = ~~col.getAttribute('width');
-        _width += width;
-      }
-      setElementProperty(temporary.domNode, {
-        width: getCorrectWidth(_width, isPercent)
-      });
-    }
+    let width = 0;
+    const cols = colgroup.domNode.querySelectorAll('col');
+    for (const col of cols) width += parseFloat(col.getAttribute('width')) || 0;
+    setElementProperty(target, { width: `${width}px` });
   } else {
-    setElementProperty(temporary.domNode, {
-      width: getCorrectWidth(tableBounds.width + change, isPercent)
+    setElementProperty(target, {
+      width: `${tableBounds.width + change}px`
     });
   }
 }

@@ -246,15 +246,16 @@ class OperateLine {
     const isPercent = tableBlot.isPercent();
     const colgroup = tableBlot.colgroup() as TableColgroup;
     const bounds = tableBlot.domNode.getBoundingClientRect();
+    const targetWidth = bounds.width + (cell.nextElementSibling ? 0 : change);
     if (colgroup) {
       const col = this.getCorrectCol(colgroup, colSum);
       const nextCol = col.next;
-      const { width } = col.domNode.getBoundingClientRect();
-      this.setColWidth(col.domNode, `${width + change}`, isPercent);
-      if (nextCol) {
-        const { width } = nextCol.domNode.getBoundingClientRect();
-        this.setColWidth(nextCol.domNode, `${width - change}`, isPercent);
-      }
+      const widths: [HTMLElement, number][] = [];
+      colgroup.children.forEach(current => {
+        const changeWidth = current === col ? change : current === nextCol ? -change : 0;
+        widths.push([current.domNode, current.domNode.getBoundingClientRect().width + changeWidth]);
+      });
+      for (const [node, width] of widths) this.setColWidth(node, `${width}`, isPercent, targetWidth);
     } else {
       const isLastCell = cell.nextElementSibling == null;
       const rows = cell.parentElement.parentElement.children;
@@ -281,14 +282,21 @@ class OperateLine {
           }
         }
       }
+      if (isPercent && targetWidth !== bounds.width) {
+        for (const node of Array.from(tableBlot.domNode.querySelectorAll('td,th'))) {
+          if (!preNodes.some(([changed]) => changed === node)) {
+            preNodes.push([node, `${node.getBoundingClientRect().width}`]);
+          }
+        }
+      }
       for (const [node, width] of preNodes) {
-        const correctWidth = getCorrectWidth(~~width, isPercent);
+        const correctWidth = getCorrectWidth(parseFloat(width), isPercent, targetWidth);
         setElementAttribute(node, { width: correctWidth });
         setElementProperty(node as HTMLElement, { width: correctWidth });
       }
     }
     if (cell.nextElementSibling == null) {
-      updateTableWidth(tableBlot.domNode, bounds, change);
+      updateTableWidth(tableBlot.domNode, bounds, change, this.quill.root);
     }
   }
 
@@ -310,6 +318,7 @@ class OperateLine {
     const isPercent = tableBlot.isPercent();
     const colgroup = tableBlot.colgroup() as TableColgroup;
     const bounds = tableBlot.domNode.getBoundingClientRect();
+    const targetWidth = bounds.width + changeX;
     for (const row of rows) {
       const cells = row.children;
       for (const cell of cells) {
@@ -319,33 +328,37 @@ class OperateLine {
       }
     }
     if (colgroup) {
-      let col = colgroup.children.head;
+      const widths: [HTMLElement, number][] = [];
+      colgroup.children.forEach(col => {
+        widths.push([col.domNode, col.domNode.getBoundingClientRect().width + averageX]);
+      });
       for (const [node, , height] of preNodes) {
         setElementAttribute(node, { height });
         setElementProperty(node as HTMLElement, { height: `${height}px` });
       }
-      while (col) {
-        const { width } = col.domNode.getBoundingClientRect();
-        this.setColWidth(col.domNode, `${Math.ceil(width + averageX)}`, isPercent);
-        col = col.next;
-      }
+      for (const [node, width] of widths) this.setColWidth(node, `${width}`, isPercent, targetWidth);
     } else {
       for (const [node, width, height] of preNodes) {
-        const correctWidth = getCorrectWidth(~~width, isPercent);
+        const correctWidth = getCorrectWidth(parseFloat(width), isPercent, targetWidth);
         setElementAttribute(node, { height, width: correctWidth });
         setElementProperty(node as HTMLElement, { height, width: correctWidth });
       }
     }
-    updateTableWidth(tableBlot.domNode, bounds, changeX);
+    updateTableWidth(tableBlot.domNode, bounds, changeX, this.quill.root);
   }
 
-  setColWidth(domNode: HTMLElement, width: string, isPercent: boolean) {
+  setColWidth(
+    domNode: HTMLElement,
+    width: string,
+    isPercent: boolean,
+    referenceWidth = domNode.closest('table').getBoundingClientRect().width
+  ) {
     if (isPercent) {
-      width = getCorrectWidth(parseFloat(width), isPercent);
+      width = getCorrectWidth(parseFloat(width), isPercent, referenceWidth);
       domNode.style.setProperty('width', width);
-    } else {
-      setElementAttribute(domNode, { width });
     }
+    // Column formats serialize the attribute, so keep it in sync with the CSS.
+    setElementAttribute(domNode, { width });
   }
 
   setCellVerticalRect(cell: Element, clientY: number) {

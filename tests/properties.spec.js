@@ -1,0 +1,49 @@
+const { test, expect } = require('./helpers');
+
+test('percentage column widths use the owning table in differently sized editors', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const html = '<table style="width:100%"><colgroup><col width="100"><col width="100"></colgroup><tr><td>A</td><td>B</td></tr></table>';
+    createEditor(html, {}, 600);
+    const quill = createEditor(html, {}, 320);
+    const module = quill.getModule('table-better');
+    const table = quill.root.querySelector('table');
+    const col = table.querySelector('col');
+    const contentWidth = quill.root.clientWidth - 30;
+    module.operateLine.setColWidth(col, `${contentWidth / 2}`, true);
+    const full = col.style.width;
+    const blot = Quill.find(table);
+    blot.temporary().domNode.style.width = '50%';
+    quill.update();
+    module.operateLine.setColWidth(col, `${table.getBoundingClientRect().width / 2}`, true);
+    const half = col.style.width;
+    quill.update();
+    const saved = quill.getContents();
+    quill.setContents(saved);
+    return { full, half, restored: quill.root.querySelector('col').getAttribute('width'), first: editors[0].root.querySelector('col').style.width };
+  });
+  expect(parseFloat(result.full)).toBeCloseTo(50, 0);
+  expect(result.half).toBe('50%');
+  expect(result.restored).toBe('50.00%');
+  expect(result.first).toBe('');
+});
+
+for (const colgroup of [true, false]) {
+  test(`resizing a percentage table preserves its own editor basis (colgroup ${colgroup})`, async ({ page }) => {
+    const result = await page.evaluate(colgroup => {
+      createEditor('<p>First</p>', {}, 600);
+      const quill = createEditor(`<table style="width:50%">${colgroup ? '<colgroup><col width="50"><col width="50"></colgroup>' : ''}<tr><td>A</td><td>B</td></tr></table>`, {}, 320);
+      quill.root.style.paddingLeft = '15.5px';
+      quill.root.style.paddingRight = '12.5px';
+      const table = quill.root.querySelector('table');
+      const before = table.getBoundingClientRect().width;
+      const editorWidth = quill.root.clientWidth - 28;
+      quill.getModule('table-better').operateLine.setCellsRect(table.querySelector('td'), 24, 0);
+      quill.update();
+      const expected = (before + 24) / editorWidth * 100;
+      return { expected, actual: parseFloat(table.style.width), widths: [...table.querySelectorAll(colgroup ? 'col' : 'td')].map(node => parseFloat(node.style.width)) };
+    }, colgroup);
+    expect(result.actual).toBeCloseTo(result.expected, 1);
+    // Collapsed table borders contribute a pixel to the table's measured width.
+    expect(Math.abs(result.widths.reduce((sum, width) => sum + width, 0) - 100)).toBeLessThan(1);
+  });
+}

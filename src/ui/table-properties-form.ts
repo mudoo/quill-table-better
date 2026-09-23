@@ -566,7 +566,7 @@ class TablePropertiesForm {
     const floatW = parseFloat(attrs['width']);
     const width =
       attrs['width']?.endsWith('%')
-        ? floatW * getCorrectContainerWidth() / 100
+        ? floatW * table.getBoundingClientRect().width / 100
         : floatW;
     const align = attrs['text-align'];
     align && delete attrs['text-align'];
@@ -784,7 +784,7 @@ class TablePropertiesForm {
     const { width } = table.getBoundingClientRect();
     table.style.removeProperty('width');
     setElementProperty(temporary.domNode, {
-      width: getCorrectWidth(width, isPercent)
+      width: getCorrectWidth(width, isPercent, getCorrectContainerWidth(this.tableMenus.quill.root))
     });
   }
 }

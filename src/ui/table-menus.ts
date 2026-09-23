@@ -95,7 +95,7 @@ function getMenusConfig(useLanguage: UseLanguageHandler, menus?: string[]): Menu
             const { leftTd } = this.getSelectedTdsInfo();
             const bounds = this.table.getBoundingClientRect();
             this.insertColumn(leftTd, 0);
-            updateTableWidth(this.table, bounds, CELL_DEFAULT_WIDTH);
+            updateTableWidth(this.table, bounds, CELL_DEFAULT_WIDTH, this.quill.root);
             this.updateMenus();
           }
         },
@@ -105,7 +105,7 @@ function getMenusConfig(useLanguage: UseLanguageHandler, menus?: string[]): Menu
             const { rightTd } = this.getSelectedTdsInfo();
             const bounds = this.table.getBoundingClientRect();
             this.insertColumn(rightTd, 1);
-            updateTableWidth(this.table, bounds, CELL_DEFAULT_WIDTH);
+            updateTableWidth(this.table, bounds, CELL_DEFAULT_WIDTH, this.quill.root);
             this.updateMenus();
           }
         },
@@ -473,7 +473,7 @@ class TableMenus {
     if (isKeyboard && selTds.length !== this.tableBetter.cellSelection.selectedTds.length) return;
     this.tableBetter.cellSelection.updateSelected('column');
     tableBlot.deleteColumn(changeTds, selTds, this.deleteTable.bind(this), deleteCols);
-    updateTableWidth(this.table, bounds, computeBounds.left - computeBounds.right);
+    updateTableWidth(this.table, bounds, computeBounds.left - computeBounds.right, this.quill.root);
     this.updateMenus();
   }
 
