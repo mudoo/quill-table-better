@@ -20,6 +20,7 @@ import {
   TableColgroup
 } from './formats/table';
 import TableHeader from './formats/header';
+import TableScroll from './formats/scroll';
 import { ListContainer } from './formats/list';
 import { 
   matchTable,
@@ -66,6 +67,7 @@ class Table extends Module {
   static keyboardBindings: { [propName: string]: BindingObject };
 
   static register() {
+    Quill.register(TableScroll, true);
     Quill.register(TableCellBlock, true);
     Quill.register(TableThBlock, true);
     Quill.register(TableCell, true);

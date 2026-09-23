@@ -24,18 +24,12 @@ A module that enhances the table functionality of [Quill](https://quilljs.com/).
 [quill.js](https://quilljs.com/) `>= v2.0.0`
 
 ## Quickstart
-> **Note**: `setContents` causes the table to not display properly, replace with `updateContents`.  
-> The method is as follows (`Used when initializing data`): 
+Use `setContents` to load or replace a document, including tables. Use
+`updateContents` only when applying an incremental Delta.
 
 ```JavaScript
 const delta = quill.clipboard.convert({ html });
-const [range] = quill.selection.getRange();
-quill.updateContents(delta, Quill.sources.USER);
-quill.setSelection(
-  delta.length() - (range?.length || 0),
-  Quill.sources.SILENT
-);
-quill.scrollSelectionIntoView();
+quill.setContents(delta, Quill.sources.API);
 ```
 
 npm
