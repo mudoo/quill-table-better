@@ -9,6 +9,7 @@ import type {
   TableCellMap,
   TableColgroup,
   TableContainer,
+  TableToolbar,
   UseLanguageHandler
 } from '../types';
 import {
@@ -1029,12 +1030,11 @@ class TableMenus {
       const [tableBounds, containerBounds] = this.getCorrectBounds(table);
       const { left, right, top, bottom } = tableBounds;
       const { height, width } = this.root.getBoundingClientRect();
-      const toolbar = this.quill.getModule('toolbar');
-      // @ts-expect-error
-      const computedStyle = getComputedStyle(toolbar.container);
+      const toolbar = this.quill.getModule('toolbar') as TableToolbar | undefined;
+      const computedStyle = getComputedStyle(toolbar?.container || this.quill.container);
       let correctTop = top - height - 10;
       let correctLeft = (left + right - width) >> 1;
-      if (correctTop > -parseInt(computedStyle.paddingBottom)) {
+      if (correctTop > -(parseFloat(computedStyle.paddingBottom) || 0)) {
         this.root.classList.add('ql-table-triangle-up');
         this.root.classList.remove('ql-table-triangle-down');
       } else {

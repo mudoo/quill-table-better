@@ -462,8 +462,8 @@ class CellSelection {
   }
 
   initWhiteList() {
-    const toolbar = this.quill.getModule('toolbar');
-    // @ts-expect-error
+    const toolbar = this.quill.getModule('toolbar') as TableToolbar | undefined;
+    if (!toolbar?.container) return;
     Array.from(toolbar.container.querySelectorAll('button, select')).forEach(
       input => {
         // @ts-ignore
@@ -802,13 +802,11 @@ class CellSelection {
 
   setSelectedTdsFormat(format: string, value: boolean | string) {
     const selectedTds = [];
-    const toolbar = this.quill.getModule('toolbar');
+    const toolbar = this.quill.getModule('toolbar') as TableToolbar | undefined;
     for (const td of this.selectedTds) {
-      // @ts-expect-error
-      if (toolbar.handlers[format] != null) {
+      if (toolbar?.handlers[format] != null) {
         const cellBlot = Quill.find(td) as TableCell;
         const lines = this.lines(cellBlot);
-        // @ts-expect-error
         const blot = toolbar.handlers[format].call(toolbar, value, lines);
         blot && selectedTds.push(getCorrectCellBlot(blot).domNode);
       } else {

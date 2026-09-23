@@ -1,5 +1,28 @@
 const { test, expect } = require('./helpers');
 
+test('toolbar false supports insertion, floating tools, formatting and destruction', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const quill = createEditor('', { toolbar: false, 'table-better': { toolbarTable: true } });
+    const module = quill.getModule('table-better');
+    quill.setSelection(0);
+    module.insertTable(2, 2);
+    quill.insertText(1, 'TEXT');
+    module.showTools();
+    await new Promise(requestAnimationFrame);
+    const menuTop = module.tableMenus.root.style.top;
+    const cells = quill.root.querySelectorAll('td').length;
+    module.cellSelection.setSelectedTds([...quill.root.querySelectorAll('td')]);
+    module.cellSelection.setSelectedTdsFormat('bold', true);
+    const bold = quill.root.querySelector('strong')?.textContent;
+    module.destroy();
+    module.destroy();
+    return { cells, bold, menuTop };
+  });
+  expect(result.cells).toBe(4);
+  expect(result.bold).toBe('TEXT');
+  expect(result.menuTop).toMatch(/^-?\d+(\.\d+)?px$/);
+});
+
 test('inline formats in TH preserve line boundaries and round-trip through Delta', async ({ page }) => {
   const result = await page.evaluate(() => {
     const quill = createEditor('<table><thead><tr><th>A<strong>B</strong><a href="https://example.com"><span style="color: rgb(10, 20, 30)">C</span></a></th><th><p>D<em>E</em></p><p>F</p></th></tr></thead></table>');
