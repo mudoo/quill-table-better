@@ -60,6 +60,8 @@ class Table extends Module {
   tableMenus: TableMenus;
   tableSelect: TableSelect;
   options: Options;
+  private stopSelectionDrag: (() => void) | null = null;
+  private toolbarTableButton: Element | null = null;
   
   static keyboardBindings: { [propName: string]: BindingObject };
 
@@ -93,11 +95,29 @@ class Table extends Module {
     this.operateLine = new OperateLine(quill, this);
     this.tableMenus = new TableMenus(quill, this);
     this.tableSelect = new TableSelect();
-    quill.root.addEventListener('keyup', this.handleKeyup.bind(this));
-    quill.root.addEventListener('mousedown', this.handleMousedown.bind(this));
-    quill.root.addEventListener('scroll', this.handleScroll.bind(this));
+    this.handleKeyup = this.handleKeyup.bind(this);
+    this.handleMousedown = this.handleMousedown.bind(this);
+    this.handleScroll = this.handleScroll.bind(this);
+    quill.root.addEventListener('keyup', this.handleKeyup);
+    quill.root.addEventListener('mousedown', this.handleMousedown);
+    quill.root.addEventListener('scroll', this.handleScroll);
     this.listenDeleteTable();
     this.registerToolbarTable(options?.toolbarTable);
+  }
+
+  destroy() {
+    this.stopSelectionDrag?.();
+    this.hideTools();
+    this.cellSelection.destroy();
+    this.operateLine.destroy();
+    this.tableMenus.destroy();
+    this.quill.root.removeEventListener('keyup', this.handleKeyup);
+    this.quill.root.removeEventListener('mousedown', this.handleMousedown);
+    this.quill.root.removeEventListener('scroll', this.handleScroll);
+    this.quill.off(Quill.events.TEXT_CHANGE, this.handleTextChange);
+    this.toolbarTableButton?.removeEventListener('click', this.handleToolbarTableClick);
+    this.quill.root.ownerDocument.removeEventListener('click', this.handleDocumentClick);
+    this.tableSelect.root?.remove();
   }
 
   clearHistorySelected() {
@@ -175,12 +195,14 @@ class Table extends Module {
   // If the default selection includes table cells,
   // automatically select the entire table
   handleMouseMove() {
+    this.stopSelectionDrag?.();
     let table: Element = null;
     const handleMouseMove = (e: MouseEvent) => {
       if (!table) table = (e.target as Element).closest('table');
     }
 
     const handleMouseup = (e: MouseEvent) => {
+      this.stopSelectionDrag?.();
       if (table) {
         const tableBlot = Quill.find(table);
         if (!tableBlot) return;
@@ -189,6 +211,7 @@ class Table extends Module {
         // @ts-expect-error
         const length = tableBlot.length();
         const range = this.quill.getSelection();
+        if (!range) return;
         const minIndex = Math.min(range.index, index);
         const maxIndex = Math.max(range.index + range.length, index + length);
         this.quill.setSelection(
@@ -197,10 +220,13 @@ class Table extends Module {
           Quill.sources.USER
         );
       }
-      this.quill.root.removeEventListener('mousemove', handleMouseMove);
-      this.quill.root.removeEventListener('mouseup', handleMouseup);
     }
 
+    this.stopSelectionDrag = () => {
+      this.quill.root.removeEventListener('mousemove', handleMouseMove);
+      this.quill.root.removeEventListener('mouseup', handleMouseup);
+      this.stopSelectionDrag = null;
+    };
     this.quill.root.addEventListener('mousemove', handleMouseMove);
     this.quill.root.addEventListener('mouseup', handleMouseup);
   }
@@ -258,25 +284,38 @@ class Table extends Module {
 
   // Completely delete empty tables
   listenDeleteTable() {
-    this.quill.on(Quill.events.TEXT_CHANGE, (delta, old, source) => {
-      if (source !== Quill.sources.USER) return;
-      const tables = this.quill.scroll.descendants(TableContainer);
-      if (!tables.length) return;
-      const deleteTables: TableContainer[] = [];
-      tables.forEach(table => {
-        const tbody = table.tbody();
-        const thead = table.thead();
-        if (!tbody && !thead) deleteTables.push(table);
-      });
-      if (deleteTables.length) {
-        for (const table of deleteTables) {
-          table.remove();
-        }
-        this.hideTools();
-        this.quill.update(Quill.sources.API);
-      }
-    });
+    this.quill.on(Quill.events.TEXT_CHANGE, this.handleTextChange);
   }
+
+  private handleTextChange = (delta: Delta, old: Delta, source: EmitterSource) => {
+    if (source !== Quill.sources.USER) return;
+    const tables = this.quill.scroll.descendants(TableContainer);
+    if (!tables.length) return;
+    const deleteTables: TableContainer[] = [];
+    tables.forEach(table => {
+      const tbody = table.tbody();
+      const thead = table.thead();
+      if (!tbody && !thead) deleteTables.push(table);
+    });
+    if (deleteTables.length) {
+      for (const table of deleteTables) {
+        table.remove();
+      }
+      this.hideTools();
+      this.quill.update(Quill.sources.API);
+    }
+  };
+
+  private handleToolbarTableClick = (e: MouseEvent) => {
+    this.tableSelect.handleClick(e, this.insertTable.bind(this));
+  };
+
+  private handleDocumentClick = (e: MouseEvent) => {
+    if (e.composedPath().includes(this.toolbarTableButton)) return;
+    if (!this.tableSelect.root.classList.contains('ql-hidden')) {
+      this.tableSelect.hide(this.tableSelect.root);
+    }
+  };
 
   private registerToolbarTable(toolbarTable: boolean) {
     if (!toolbarTable) return;
@@ -284,17 +323,10 @@ class Table extends Module {
     const toolbar = this.quill.getModule('toolbar') as TableToolbar;
     const button = toolbar.container.querySelector('button.ql-table-better');
     if (!button || !this.tableSelect.root) return;
+    this.toolbarTableButton = button;
     button.appendChild(this.tableSelect.root);
-    button.addEventListener('click', (e: MouseEvent) => {
-      this.tableSelect.handleClick(e, this.insertTable.bind(this));
-    });
-    document.addEventListener('click', (e: MouseEvent) => {
-      const visible = e.composedPath().includes(button);
-      if (visible) return;
-      if (!this.tableSelect.root.classList.contains('ql-hidden')) {
-        this.tableSelect.hide(this.tableSelect.root);
-      }
-    });
+    button.addEventListener('click', this.handleToolbarTableClick);
+    this.quill.root.ownerDocument.addEventListener('click', this.handleDocumentClick);
   }
 
   showTools(force?: boolean) {

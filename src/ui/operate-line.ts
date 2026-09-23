@@ -34,6 +34,7 @@ class OperateLine {
   dragTable: HTMLElement | null;
   direction: string | null;
   tableBetter: QuillTableBetter;
+  private stopDrag: (() => void) | null = null;
   constructor(quill: Quill, tableBetter?: QuillTableBetter) {
     this.quill = quill;
     this.options = null;
@@ -43,7 +44,16 @@ class OperateLine {
     this.dragTable = null;
     this.direction = null; // 1.level 2.vertical
     this.tableBetter = tableBetter;
-    this.quill.root.addEventListener('mousemove', this.handleMouseMove.bind(this));
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.quill.root.addEventListener('mousemove', this.handleMouseMove);
+  }
+
+  destroy() {
+    this.stopDrag?.();
+    this.quill.root.removeEventListener('mousemove', this.handleMouseMove);
+    this.line?.remove();
+    this.dragBlock?.remove();
+    this.dragTable?.remove();
   }
 
   createDragBlock() {
@@ -360,6 +370,7 @@ class OperateLine {
 
   updateCell(node: Element) {
     if (!node) return;
+    const doc = this.quill.root.ownerDocument;
     const isLine = this.isLine(node);
     const handleDrag = (e: MouseEvent) => {
       e.preventDefault();
@@ -389,14 +400,13 @@ class OperateLine {
         this.hideDragBlock();
         this.hideDragTable();
       }
-      this.drag = false;
-      document.removeEventListener('mousemove', handleDrag, false);
-      document.removeEventListener('mouseup', handleMouseup, false);
+      this.stopDrag?.();
       this.tableBetter.tableMenus.updateMenus(tableNode);
     }
 
     const handleMousedown = (e: MouseEvent) => {
       e.preventDefault();
+      this.stopDrag?.();
       const { tableNode } = this.options;
       if (isLine) {
         this.toggleLineChildClass(true);
@@ -409,8 +419,14 @@ class OperateLine {
         }
       }
       this.drag = true;
-      document.addEventListener('mousemove', handleDrag);
-      document.addEventListener('mouseup', handleMouseup);
+      this.stopDrag = () => {
+        this.drag = false;
+        doc.removeEventListener('mousemove', handleDrag);
+        doc.removeEventListener('mouseup', handleMouseup);
+        this.stopDrag = null;
+      };
+      doc.addEventListener('mousemove', handleDrag);
+      doc.addEventListener('mouseup', handleMouseup);
     }
     node.addEventListener('mousedown', handleMousedown);
   }

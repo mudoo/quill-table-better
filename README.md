@@ -291,6 +291,14 @@ module.getTable();
 module.insertTable(3, 3);
 ```
 
+### destroy()
+Call this before removing the editor from the page to clear the table selection,
+remove its tools, and unregister the module's event listeners. Repeated calls are safe.
+
+```JavaScript
+module.destroy();
+```
+
 ## Download
 ```JavaScript
 npm i quill-table-better

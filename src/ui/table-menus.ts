@@ -281,6 +281,7 @@ class TableMenus {
   tableBetter: QuillTableBetter;
   tablePropertiesForm: TablePropertiesForm;
   tableHeaderRow: HTMLElement | null;
+  private menuFrame: number | null = null;
   constructor(quill: Quill, tableBetter?: QuillTableBetter) {
     this.quill = quill;
     this.table = null;
@@ -290,8 +291,17 @@ class TableMenus {
     this.tableBetter = tableBetter;
     this.tablePropertiesForm = null;
     this.tableHeaderRow = null;
-    this.quill.root.addEventListener('click', this.handleClick.bind(this));
+    this.handleClick = this.handleClick.bind(this);
+    this.quill.root.addEventListener('click', this.handleClick);
     this.root = this.createMenus();
+  }
+
+  destroy() {
+    if (this.menuFrame !== null) cancelAnimationFrame(this.menuFrame);
+    this.menuFrame = null;
+    this.quill.root.removeEventListener('click', this.handleClick);
+    this.destroyTablePropertiesForm();
+    this.root.remove();
   }
 
   convertToRow() {
@@ -1012,7 +1022,9 @@ class TableMenus {
 
   updateMenus(table: HTMLElement = this.table) {
     if (!table) return;
-    requestAnimationFrame(() => {
+    if (this.menuFrame !== null) cancelAnimationFrame(this.menuFrame);
+    this.menuFrame = requestAnimationFrame(() => {
+      this.menuFrame = null;
       this.root.classList.remove('ql-table-triangle-none');
       const [tableBounds, containerBounds] = this.getCorrectBounds(table);
       const { left, right, top, bottom } = tableBounds;

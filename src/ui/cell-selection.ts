@@ -8,7 +8,8 @@ import type {
   TableBody,
   TableCellAllowedChildren,
   TableCellChildren,
-  TableContainer
+  TableContainer,
+  TableToolbar
 } from '../types';
 import {
   getComputeBounds,
@@ -57,6 +58,14 @@ class CellSelection {
   disabledList: Array<HTMLElement | Element>;
   singleList: Array<HTMLElement | Element>;
   tableBetter: QuillTableBetter;
+  private stopSelectionDrag: (() => void) | null = null;
+  private documentListeners = {
+    copy: (e: ClipboardEvent) => this.onCaptureCopy(e, false),
+    cut: (e: ClipboardEvent) => this.onCaptureCopy(e, true),
+    keyup: (e: KeyboardEvent) => this.handleDeleteKeyup(e),
+    paste: (e: ClipboardEvent) => this.onCapturePaste(e)
+  };
+
   constructor(quill: Quill, tableBetter: QuillTableBetter) {
     this.quill = quill;
     this.selectedTds = [];
@@ -65,7 +74,8 @@ class CellSelection {
     this.disabledList = [];
     this.singleList = [];
     this.tableBetter = tableBetter;
-    this.quill.root.addEventListener('click', this.handleClick.bind(this));
+    this.handleClick = this.handleClick.bind(this);
+    this.quill.root.addEventListener('click', this.handleClick);
     this.initDocumentListener();
     this.initWhiteList();
   }
@@ -93,6 +103,55 @@ class CellSelection {
     this.selectedTds = [];
     this.startTd = null;
     this.endTd = null;
+  }
+
+  destroy() {
+    const doc = this.quill.root.ownerDocument;
+    this.stopSelectionDrag?.();
+    this.clearSelected();
+    this.setDisabled(false);
+    this.quill.root.removeEventListener('click', this.handleClick);
+    for (const [name, listener] of Object.entries(this.documentListeners)) {
+      doc.removeEventListener(name, listener);
+    }
+    doc.removeEventListener('focusin', this.handleExternalInteraction, true);
+    doc.removeEventListener('pointerdown', this.handleExternalInteraction, true);
+  }
+
+  private handleExternalInteraction = (e: Event) => {
+    if (!this.selectedTds.length) return;
+    const target = e.target as Node;
+    const toolbar = this.quill.getModule('toolbar') as TableToolbar | undefined;
+    if (
+      this.quill.container.contains(target) ||
+      toolbar?.container?.contains(target)
+    ) return;
+
+    // Multi-cell selection deliberately blurs Quill. Release it only when
+    // the user moves outside this editor and its toolbar, not on every blur.
+    this.stopSelectionDrag?.();
+    this.tableBetter.hideTools();
+  };
+
+  private shouldHandleDocumentEvent(e: Event) {
+    const { root } = this.quill;
+    if (
+      !this.selectedTds.length ||
+      !root.isConnected ||
+      !this.quill.isEnabled() ||
+      this.selectedTds.some(td => !root.contains(td))
+    ) return false;
+
+    const doc = root.ownerDocument;
+    const target = e.target as Node;
+    if (root.contains(target)) return true;
+
+    // After a multi-cell drag or table paste, native clipboard/key events
+    // target the body. Inputs in toolbars and property forms keep their own events.
+    return (
+      (target === doc.body || target === doc.documentElement || target === doc) &&
+      (doc.activeElement === doc.body || doc.activeElement === root)
+    );
   }
 
   exitTableFocus(block: TableCellChildren, up: boolean) {
@@ -304,7 +363,8 @@ class CellSelection {
   }
 
   handleDeleteKeyup(e: KeyboardEvent) {
-    if (this.selectedTds?.length < 2) return;
+    if (e.defaultPrevented || !this.shouldHandleDocumentEvent(e)) return;
+    if (this.selectedTds.length < 2) return;
     if (e.key === 'Backspace' || e.key === 'Delete') {
       if (e.ctrlKey) {
         this.tableBetter.tableMenus.deleteColumn(true);
@@ -336,6 +396,7 @@ class CellSelection {
     this.tableBetter.tableMenus.destroyTablePropertiesForm();
     const startTd = (e.target as Element).closest('td,th');
     if (!startTd) return;
+    this.stopSelectionDrag?.();
     this.clearSelected();
     this.startTd = startTd;
     this.endTd = startTd;
@@ -363,16 +424,22 @@ class CellSelection {
     }
 
     const handleMouseup = (e: MouseEvent) => {
+      this.stopSelectionDrag?.();
+      if (!this.selectedTds.length) return;
       this.setSingleDisabled();
       this.setCorrectPositionTds(this.startTd, this.endTd, this.selectedTds);
       this.setHeaderRowSwitch();
       this.setMenuDisable('merge');
-      this.quill.root.removeEventListener('mousemove', handleMouseMove);
-      this.quill.root.removeEventListener('mouseup', handleMouseup);
     }
 
+    const doc = this.quill.root.ownerDocument;
+    this.stopSelectionDrag = () => {
+      this.quill.root.removeEventListener('mousemove', handleMouseMove);
+      doc.removeEventListener('mouseup', handleMouseup);
+      this.stopSelectionDrag = null;
+    };
     this.quill.root.addEventListener('mousemove', handleMouseMove);
-    this.quill.root.addEventListener('mouseup', handleMouseup);
+    doc.addEventListener('mouseup', handleMouseup);
   }
 
   hasTdTh(selectedTds: Element[]) {
@@ -382,10 +449,12 @@ class CellSelection {
   }
 
   initDocumentListener() {
-    document.addEventListener('copy', (e: ClipboardEvent) => this.onCaptureCopy(e, false));
-    document.addEventListener('cut', (e: ClipboardEvent) => this.onCaptureCopy(e, true));
-    document.addEventListener('keyup', this.handleDeleteKeyup.bind(this));
-    document.addEventListener('paste', this.onCapturePaste.bind(this));
+    const doc = this.quill.root.ownerDocument;
+    for (const [name, listener] of Object.entries(this.documentListeners)) {
+      doc.addEventListener(name, listener);
+    }
+    doc.addEventListener('focusin', this.handleExternalInteraction, true);
+    doc.addEventListener('pointerdown', this.handleExternalInteraction, true);
   }
 
   initWhiteList() {
@@ -521,6 +590,7 @@ class CellSelection {
   }
 
   onCaptureCopy(e: ClipboardEvent, isCut = false) {
+    if (!this.shouldHandleDocumentEvent(e)) return;
     if (this.selectedTds?.length < 2) return;
     if (e.defaultPrevented) return;
     e.preventDefault();
@@ -531,7 +601,9 @@ class CellSelection {
   }
 
   onCapturePaste(e: ClipboardEvent) {
-    if (!this.selectedTds?.length) return;
+    if (!this.shouldHandleDocumentEvent(e)) return;
+    // Quill's root listener already prevents in-editor pastes before this
+    // document listener handles table cells, so defaultPrevented alone is not a guard.
     e.preventDefault();
     const html = e.clipboardData?.getData('text/html');
     const text = e.clipboardData?.getData('text/plain');
