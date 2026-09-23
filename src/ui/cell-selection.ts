@@ -20,7 +20,9 @@ import {
 } from '../utils';
 import { applyFormat } from '../utils/clipboard-matchers';
 import {
+  cellId,
   TableCellBlock,
+  TableThBlock,
   TableCell,
   TableRow,
   TableThRow
@@ -525,7 +527,6 @@ class CellSelection {
     const range = this.quill.getSelection();
     if (!range) return;
     const [block] = this.quill.getLine(range.index);
-    // @ts-expect-error
     const cell = getCorrectCellBlot(block);
     if (!cell) return this.tableBetter.hideTools();
     if (cell && (!td || !td.isEqualNode(cell.domNode))) {
@@ -547,7 +548,6 @@ class CellSelection {
       this.quill.setSelection(index, 0, Quill.sources.USER);
     } else {
       if (!this.selectedTds.length) {
-        // @ts-expect-error
         const cellBlot = getCorrectCellBlot(block);
         if (!cellBlot) return;
         this.tableArrowSelection(up, cellBlot);
@@ -645,8 +645,8 @@ class CellSelection {
           cell = this.pasteSelectedTd(cell.domNode, copyTd);
           prevPasteTd = cell.domNode;
         } else {
-          prevPasteTd = pasteTd;
           cell = this.pasteSelectedTd(pasteTd, copyTd);
+          prevPasteTd = cell.domNode;
         }
         cell && selectedTds.push(cell.domNode);
       }
@@ -655,6 +655,8 @@ class CellSelection {
         pasteTd.remove();
       }
     }
+    this.quill.update(Quill.sources.USER);
+    this.quill.history.cutoff();
     this.quill.blur();
     this.setSelectedTds(selectedTds);
     this.tableBetter.tableMenus.updateMenus();
@@ -666,23 +668,28 @@ class CellSelection {
     const copyFormats = TableCell.formats(copyTd);
     Object.assign(copyFormats, { 'data-row': id });
     const cell = Quill.find(selectedTd) as TableCell;
-    const _cell = cell.replaceWith(cell.statics.blotName, copyFormats) as TableCell;
-    this.quill.setSelection(
-      _cell.offset(this.quill.scroll) + _cell.length() - 1,
-      0,
-      Quill.sources.USER
-    );
-    const range = this.quill.getSelection(true);
-    const formats = this.quill.getFormat(range.index) as Props;
-    const html = copyTd.innerHTML;
+    const index = cell.offset(this.quill.scroll);
+    const blockName = selectedTd.tagName === 'TH' ? TableThBlock.blotName : TableCellBlock.blotName;
+    const formats = {
+      [blockName]: cellId(),
+      [cell.statics.blotName]: copyFormats
+    };
+    const html = getCopyTd(copyTd.innerHTML);
     const text = this.getText(html);
     const pastedDelta = this.quill.clipboard.convert({ text, html });
+    const last = pastedDelta.ops[pastedDelta.ops.length - 1];
+    if (typeof last?.insert !== 'string' || !last.insert.endsWith('\n')) {
+      pastedDelta.insert('\n');
+    }
+    // Replace the complete cell, including its terminal newline. A fresh ID
+    // prevents imported paragraphs from merging with the old cell or neighbours.
     const delta = new Delta()
-      .retain(range.index)
-      .delete(range.length)
-      .concat(applyFormat(pastedDelta, formats));
+      .retain(index)
+      .concat(applyFormat(pastedDelta, formats))
+      .delete(cell.length());
     this.quill.updateContents(delta, Quill.sources.USER);
-    return _cell;
+    const [line] = this.quill.getLine(index);
+    return getCorrectCellBlot(line);
   }
 
   removeCursor() {

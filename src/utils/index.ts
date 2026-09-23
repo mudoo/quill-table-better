@@ -1,4 +1,5 @@
 import Quill from 'quill';
+import type { Blot } from 'parchment';
 import type {
   CorrectBound,
   Props,
@@ -222,16 +223,14 @@ function getCorrectBounds(target: Element, container: Element = target) {
   }
 }
 
-function getCorrectCellBlot(blot: TableCell | TableCellChildren): TableCell | null {
+function getCorrectCellBlot(blot: Blot | null): TableCell | null {
   while (blot) {
     if (
       blot.statics.blotName === TableCell.blotName ||
       blot.statics.blotName === TableTh.blotName
     ) {
-      // @ts-ignore
-      return blot;
+      return blot as TableCell;
     }
-    // @ts-expect-error
     blot = blot.parent;
   }
   return null;
