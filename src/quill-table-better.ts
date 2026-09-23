@@ -157,12 +157,10 @@ class Table extends Module {
   ): [null, null, null, -1] | [TableContainer, TableRow, TableCell, number] {
     if (range == null) return [null, null, null, -1];
     const [block, offset] = this.quill.getLine(range.index);
-    if (block == null || block.statics.blotName !== TableCellBlock.blotName) {
-      return [null, null, null, -1];
-    }
-    const cell = block.parent as TableCell;
-    const row = cell.parent as TableRow;
-    const table = row.parent.parent as TableContainer;
+    const cell = getCorrectCellBlot(block);
+    if (!cell) return [null, null, null, -1];
+    const row = cell.row();
+    const table = cell.table();
     return [table, row, cell, offset];
   }
 
@@ -280,8 +278,7 @@ class Table extends Module {
 
   // Inserting tables within tables is currently not supported
   private isTable(range: Range) {
-    const formats = this.quill.getFormat(range.index);
-    return !!formats[TableCellBlock.blotName];
+    return this.getTable(range)[0] !== null;
   }
 
   // Completely delete empty tables

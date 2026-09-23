@@ -90,14 +90,12 @@ function matchTableTemporary(node: HTMLElement, delta: Delta) {
 
 function matchTableTh(node: HTMLTableCellElement, delta: Delta) {
   if (node.tagName === 'TH') {
-    delta.ops.forEach(op => {
-      if (
-        typeof op.insert === 'string' &&
-        !op.insert.endsWith('\n')
-      ) {
-        op.insert += '\n';
-      }
-    });
+    const last = delta.ops[delta.ops.length - 1];
+    // Inline formats split text into ops, not paragraphs. Only terminate the
+    // cell when the clipboard matcher has not already supplied its final line.
+    if (typeof last?.insert !== 'string' || !last.insert.endsWith('\n')) {
+      delta.insert('\n', last?.attributes);
+    }
   }
   return delta;
 }
