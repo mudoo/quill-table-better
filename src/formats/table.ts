@@ -457,55 +457,60 @@ class TableContainer extends Container {
   }
 
   deleteRow(rows: TableRow[], deleteTable: () => void) {
-    const body = this.tbody();
-    if (body == null || body.children.head == null) return;
-    if (rows.length === body.children.length) {
+    const tableRows = this.descendants(TableRow);
+    const deleted = new Set(rows.filter(row => tableRows.includes(row)));
+    if (!deleted.size) return;
+    if (tableRows.every(row => deleted.has(row))) {
       deleteTable();
-    } else {
-      const weakMap: WeakMap<TableCell, { next: TableRow, rowspan: number }> = new WeakMap();
-      const columnCells: [TableRow, Props, TableCell | null, TableCell | null][] = [];
-      const keys: TableCell[] = [];
-      const maxColumns = this.getMaxColumns(body.children.head.children);
-      for (const row of rows) {
-        const prev = this.getCorrectRow(row, maxColumns);
-        prev && prev.children.forEach((child: TableCell) => {
-          const rowspan = ~~child.domNode.getAttribute('rowspan') || 1;
-          if (rowspan > 1) {
-            const blotName = child.statics.blotName;
-            const [formats] = getCellFormats(child);
-            if (rows.includes(child.parent)) {
-              const next = child.parent?.next;
-              if (weakMap.has(child)) {
-                const { rowspan } = weakMap.get(child);
-                weakMap.set(child, { next, rowspan: rowspan - 1 });
-              } else {
-                weakMap.set(child, { next, rowspan: rowspan - 1 });
-                keys.push(child);
-              }
-            } else {
-              child.replaceWith(blotName, { ...formats, rowspan: rowspan - 1 });
-            }
+      return;
+    }
+
+    // Rowspans belong to one section. Capture logical columns before moving any
+    // cells so consecutive deletions do not depend on changing pixel bounds.
+    for (const section of [this.thead(), this.tbody()]) {
+      if (!section) continue;
+      const sectionRows: TableRow[] = [];
+      section.children.forEach(row => sectionRows.push(row));
+      const occupiedUntil: number[] = [];
+      const columns = new Map<TableCell, number>();
+      const cells: { cell: TableCell; rowIndex: number; end: number }[] = [];
+      sectionRows.forEach((row, rowIndex) => {
+        let column = 0;
+        row.children.forEach(cell => {
+          while (occupiedUntil[column] > rowIndex) column++;
+          const colspan = Math.max(1, Number(cell.domNode.getAttribute('colspan')) || 1);
+          const rowspan = Math.max(1, Number(cell.domNode.getAttribute('rowspan')) || 1);
+          const end = Math.min(sectionRows.length, rowIndex + rowspan);
+          columns.set(cell, column);
+          cells.push({ cell, rowIndex, end });
+          for (let offset = 0; offset < colspan; offset++) {
+            occupiedUntil[column + offset] = end;
           }
+          column += colspan;
         });
-      }
-      for (const prev of keys) {
-        const [formats] = getCellFormats(prev);
-        const { right: position, width } = prev.domNode.getBoundingClientRect();
-        const { next, rowspan } = weakMap.get(prev);
-        this.setColumnCells(next, columnCells, { position, width }, formats, rowspan, prev);
-      }
-      for (const [row, formats, ref, prev] of columnCells) {
-        const cell = this.scroll.create(TableCell.blotName, formats) as TableCell;
-        prev.moveChildren(cell);
-        const _cellId = cellId();
-        cell.setChildrenId(_cellId);
-        row.insertBefore(cell, ref);
-        prev.remove();
-      }
-      for (const row of rows) {
-        row.remove();
+      });
+
+      for (const { cell, rowIndex, end } of cells) {
+        const surviving = sectionRows.slice(rowIndex, end).filter(row => !deleted.has(row));
+        if (!surviving.length) continue;
+        if (surviving.length > 1) {
+          cell.domNode.setAttribute('rowspan', String(surviving.length));
+        } else {
+          cell.domNode.removeAttribute('rowspan');
+        }
+        if (!deleted.has(cell.parent)) continue;
+        const target = surviving[0];
+        const id = target.children.head?.domNode.getAttribute('data-row') || tableId();
+        cell.domNode.setAttribute('data-row', id);
+        // Imported cell IDs may repeat in different rows; do not merge the
+        // relocated content with a neighbour that used the same source ID.
+        cell.setChildrenId(cellId());
+        let ref = target.children.head;
+        while (ref && columns.get(ref) < columns.get(cell)) ref = ref.next;
+        target.insertBefore(cell, ref);
       }
     }
+    for (const row of deleted) row.remove();
   }
 
   deleteTable() {
