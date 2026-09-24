@@ -22,6 +22,8 @@ import ToolbarTable, { TableSelect } from '../ui/toolbar-table';
 import TableToolbar from '../modules/toolbar';
 import TableClipboard from '../modules/clipboard';
 
+export type { Options } from '../quill-table-better';
+
 export interface CorrectBound {
   left: number;
   top: number;

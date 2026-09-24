@@ -32,17 +32,18 @@ import Language from './language';
 import CellSelection from './ui/cell-selection';
 import OperateLine from './ui/operate-line';
 import TableMenus from './ui/table-menus';
+import type { CustomMenu } from './ui/table-menus';
 import ToolbarTable, { TableSelect } from './ui/toolbar-table';
 import { getCellId, getCorrectCellBlot } from './utils';
 import TableToolbar from './modules/toolbar';
 import TableClipboard from './modules/clipboard';
 
-interface Options {
+export interface Options {
   language?: string | {
     name: string;
     content: Props;
   }
-  menus?: string[]
+  menus?: (string | CustomMenu)[]
   toolbarButtons?: {
     whiteList?: string[];
     singleWhiteList?: string[];

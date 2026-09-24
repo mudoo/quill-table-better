@@ -67,7 +67,7 @@ interface Menu {
   children?: Children;
 }
 
-interface CustomMenu extends Menu {
+export interface CustomMenu extends Partial<Menu> {
   name: 'column' | 'row' | 'merge' | 'table' | 'cell' | 'wrap' | 'delete' | 'copy';
 }
 
@@ -80,7 +80,7 @@ enum Alignment {
   right = 'margin-right'
 }
 
-function getMenusConfig(useLanguage: UseLanguageHandler, menus?: string[]): MenusDefaults {
+function getMenusConfig(useLanguage: UseLanguageHandler, menus?: (string | CustomMenu)[]): MenusDefaults {
   const DEFAULT: MenusDefaults = {
     column: {
       content: useLanguage('col'),

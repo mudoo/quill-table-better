@@ -23,6 +23,9 @@ A module that enhances the table functionality of [Quill](https://quilljs.com/).
 ## Dependencies
 [quill.js](https://quilljs.com/) `>= v2.0.0`
 
+Quill is a peer dependency. Runtime Parchment constructors are taken from
+`Quill.import('parchment')` so the plugin shares the editor's registry types.
+
 ## Quickstart
 Use `setContents` to load or replace a document, including tables. Use
 `updateContents` only when applying an incremental Delta.
@@ -31,6 +34,11 @@ Use `setContents` to load or replace a document, including tables. Use
 const delta = quill.clipboard.convert({ html });
 quill.setContents(delta, Quill.sources.API);
 ```
+
+`toolbar: false` is supported. In property forms, table percentages use the
+owning editor's content width, while cell and column percentages use the table
+width. Colors support RGBA and eight-digit hex values; the color picker includes
+an opacity control.
 
 npm
 ```JavaScript
@@ -303,3 +311,17 @@ npm i quill-table-better
 <link href="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/quill-table-better@1/dist/quill-table-better.js"></script>
 ```
+
+## Development
+
+Use Node.js 20 or newer for development and browser tests.
+
+```sh
+npm ci
+npx playwright install chromium
+npm run verify
+```
+
+Verification includes full TypeScript checking, a production build, consumer
+declaration checking, and Chromium regression tests against development and
+production bundles. Browser tests load local files without a preview server.

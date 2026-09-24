@@ -3,4 +3,7 @@
 .vscode
 /config
 /demo
+/tests
+/playwright.config.js
+/AUDIT.md
 tsconfig.json
