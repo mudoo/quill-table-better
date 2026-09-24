@@ -298,6 +298,17 @@ function isValidPadding(value: string) {
   return parts.every(part => isValidDimensions(part));
 }
 
+function preserveFocusOnMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return;
+  const container = e.currentTarget as HTMLElement;
+  const control = (e.target as Element).closest(
+    'input, textarea, select, button, a[href], [tabindex], [contenteditable]:not([contenteditable="false"])'
+  );
+  // Only controls inside this panel should move focus. A focusable host would
+  // otherwise clear the table selection before a menu item's click can run.
+  if (!control || !container.contains(control)) e.preventDefault();
+}
+
 function removeElementProperty(node: HTMLElement, properties: string[]) {
   for (const property of properties) {
     node.style.removeProperty(property);
@@ -424,6 +435,7 @@ export {
   isValidColor,
   isValidDimensions,
   isValidPadding,
+  preserveFocusOnMouseDown,
   removeElementProperty,
   rgbToHex,
   rgbToHex as rgbaToHex,

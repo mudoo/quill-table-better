@@ -20,6 +20,7 @@ import {
   getComputeBounds,
   getComputeSelectedCols,
   getComputeSelectedTds,
+  preserveFocusOnMouseDown,
   setElementProperty,
   getElementStyle,
   updateTableWidth
@@ -301,6 +302,7 @@ class TableMenus {
     if (this.menuFrame !== null) cancelAnimationFrame(this.menuFrame);
     this.menuFrame = null;
     this.quill.root.removeEventListener('click', this.handleClick);
+    this.root.removeEventListener('mousedown', preserveFocusOnMouseDown);
     this.destroyTablePropertiesForm();
     this.root.remove();
   }
@@ -435,6 +437,7 @@ class TableMenus {
     const useLanguage = language.useLanguage.bind(language);
     const container = document.createElement('div');
     container.classList.add('ql-table-menus-container', 'ql-hidden');
+    container.addEventListener('mousedown', preserveFocusOnMouseDown);
     for (const [category, val] of Object.entries(getMenusConfig(useLanguage, menus))) {
       const { content, icon, children, handler } = val;
       const list = this.createList(children);

@@ -25,6 +25,7 @@ import {
   getCorrectWidth,
   isDimensions,
   isValidColor,
+  preserveFocusOnMouseDown,
   setElementProperty,
   setElementAttribute
 } from '../utils';
@@ -446,6 +447,7 @@ class TablePropertiesForm {
     const { title, properties } = getProperties(options, useLanguage);
     const container = document.createElement('div');
     container.classList.add('ql-table-properties-form');
+    container.addEventListener('mousedown', preserveFocusOnMouseDown);
     const header = document.createElement('h2');
     const actions = this.createActionBtns(
       (e: MouseEvent) => {
@@ -549,6 +551,7 @@ class TablePropertiesForm {
   }
 
   removePropertiesForm() {
+    this.form.removeEventListener('mousedown', preserveFocusOnMouseDown);
     this.form.remove();
     this.borderForm = [];
   }
